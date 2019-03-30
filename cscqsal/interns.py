@@ -179,7 +179,8 @@ def display_intern_salaries():
     plt.xlabel("Hourly Rate (USD/hr)")
     plt.ylabel("Companies")
     plt.title("{0} CS internship salaries "
-              "(as reported by /r/cscareerquestions)".format(num_salaries))
+              "(as reported by /r/cscareerquestions), 2016 - Present"
+              .format(num_salaries))
     plt.yticks(x_pos, x)
 
     for i, v in enumerate(y):
