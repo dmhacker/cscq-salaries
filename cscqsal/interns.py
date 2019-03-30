@@ -1,5 +1,5 @@
 from reddit import reddit
-from companies import COMPANIES
+from companies import COMPANIES, combine_synonyms
 
 import pprint
 import matplotlib.pyplot as plt
@@ -34,23 +34,24 @@ def get_intern_hourly_rates():
                     .replace(' /', '/') \
                     .replace('/ ', '/')
 
-                # Before beginning, trim out the header section.
-                # This is where people list their school and any
-                # past internships or CS experience they might have
-                # had. If this is not done, people can include
-                # companies in here that will be incorrectly
-                # considered as current offers
-                header_tags = ['prior experience',
-                               'past experience',
-                               'previous experience',
-                               'school']
-                for tag in header_tags:
-                    header_idx = content.find(tag)
-                    if header_idx >= 0:
-                        header_idx += len(tag)
-                        content = content[header_idx:]
-                        end_header_idx = content.find('\n')
-                        content = content[end_header_idx:]
+                # Before beginning, trim out any lines mentioning
+                # schools or past experiences. If this is not done,
+                # people can include companies in here that
+                # will be incorrectly considered as current offers
+                trimmed_content = []
+                for line in content.split('\n'):
+                    good_line = True
+                    for tag in ['prior experience',
+                                'past experience',
+                                'previous experience',
+                                'school',
+                                'college']:
+                        if tag in line:
+                            good_line = False
+                            break
+                    if good_line and len(line.strip()) > 0:
+                        trimmed_content.append(line)
+                content = '\n'.join(trimmed_content)
 
                 for company in COMPANIES:
                     # Try to find each company in the user's comment
@@ -58,7 +59,15 @@ def get_intern_hourly_rates():
                     # one of the user's offers, given that the past
                     # experience header section has been filtered out
                     company_idx = content.find(company.lower())
-                    if company_idx >= 0:
+                    before_char = content[company_idx - 1] \
+                        if company_idx > 0 else ' '
+                    after_char = content[company_idx + len(company)] \
+                        if company_idx + len(company) < len(content) else ' '
+                    ending_delimiters = [' ', '\n', ':', '*',
+                                         '/', '(', ')', '.']
+                    if company_idx >= 0 and \
+                            before_char in ending_delimiters and \
+                            after_char in ending_delimiters:
                         salary = -1
                         for i in range(company_idx, len(content)):
                             if content[i] == '/' and \
@@ -116,9 +125,9 @@ def get_intern_hourly_rates():
                                     salary /= 40
 
                                 # Intern monthly salaries should at least be
-                                # in the hourly range [15, 100]. Any numbers
+                                # in the hourly range [10, 150]. Any numbers
                                 # outside those ranges are basically impossible
-                                if salary < 15 or salary > 100:
+                                if salary < 10 or salary > 150:
                                     print("Skipping #{0} ({1}). "
                                           "Salary is ${2}/hour?"
                                           .format(comment.id, company, salary))
@@ -128,21 +137,25 @@ def get_intern_hourly_rates():
                                 # appearance of the company in the output
                                 # (e.g JPMorgan and JP Morgan are the same
                                 # company, just stylized differently)
+                                company = combine_synonyms(company)
+
+                                # Handle the ridiculuous diveristy
+                                # initiatives that some companies love
                                 if company == 'Google':
-                                    if content in ['ep intern',
-                                                   'engineering practicum'
-                                                   'intern']:
+                                    if 'engineering practicum intern' \
+                                            in content or \
+                                            'ep intern' in content:
                                         company = 'Google-EP'
-                                if company == 'JP Morgan':
-                                    company = 'JPMorgan'
-                                if company == 'Digital Ocean':
-                                    company = 'DigitalOcean'
-                                if company in ['Proprietary Trading',
-                                               'Trading Firm',
-                                               'Prop Shop']:
-                                    company = 'Prop Trading'
-                                if company == '2 Sigma':
-                                    company = 'Two Sigma'
+                                if company == 'Facebook':
+                                    if 'university intern' in content:
+                                        company = 'Facebook-University'
+                                if company == 'Microsoft':
+                                    if 'explore intern' in content:
+                                        company = 'Microsoft-Explore'
+
+                                if company == 'Facebook':
+                                    print('-' * 60)
+                                    print(content)
 
                                 break
 
@@ -155,7 +168,7 @@ def get_intern_hourly_rates():
                             # Recompute averages and increase count
                             stats = salaries[company]
                             [avg, cnt] = stats
-                            stats[0] = ((avg * cnt) + salary) / (cnt + 1)
+                            stats[0] = (avg * cnt + salary) / (cnt + 1)
                             stats[1] += 1
     return salaries
 
