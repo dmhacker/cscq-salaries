@@ -89,4 +89,5 @@ COMPANIES = [
     'American Express',
     'Epic',
     'Slack',
+    'Walmart Labs',
 ]

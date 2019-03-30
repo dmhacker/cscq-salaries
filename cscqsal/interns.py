@@ -182,6 +182,10 @@ def display_intern_salaries():
               "(as reported by /r/cscareerquestions)".format(num_salaries))
     plt.yticks(x_pos, x)
 
+    for i, v in enumerate(y):
+        plt.text(v + 0.5, i - 0.3, '{0:.2f}'.format(v),
+                 color='green', fontweight='bold')
+
     # Call the plot display routine
     plt.show()
 
