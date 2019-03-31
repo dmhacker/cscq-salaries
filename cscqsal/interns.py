@@ -1,6 +1,7 @@
 from reddit import reddit
 from companies import COMPANIES, combine_synonyms
 
+import statistics
 import logging
 import json
 
@@ -227,27 +228,25 @@ def get_intern_hourly_rates(logger=global_logger):
 
                         # Base case: a company has 0 interns working
                         # for it and they pay an hourly rate of 0
-                        if company not in salaries:
-                            salaries[company] = [0, 0]
-
-                        # Recompute averages and increase count
-                        stats = salaries[company]
-                        [avg, cnt] = stats
-                        stats[0] = (avg * cnt + salary) / (cnt + 1)
-                        stats[1] += 1
+                        if company in salaries:
+                            salaries[company].append(salary)
+                        else:
+                            salaries[company] = [salary]
     return salaries
 
 
 def display_intern_salaries():
     # Fetch salary data and pretty print it for debugging purposes
     intern_salaries = get_intern_hourly_rates()
+    average_intern_salaries = {c: statistics.mean(intern_salaries[c])
+                               for c in intern_salaries.keys()}
     print(json.dumps(intern_salaries, indent=2, sort_keys=True))
 
     # Extract x, y data (companies, rates respectively)
     companies = sorted(list(intern_salaries.keys()),
-                       key=lambda c: intern_salaries[c][0])
+                       key=lambda c: average_intern_salaries[c])
     x = ['{0}'.format(c) for c in companies]
-    y = [intern_salaries[c][0] for c in companies]
+    y = [average_intern_salaries[c] for c in companies]
     x_pos = [i for i, _ in enumerate(x)]
 
     # Specify horizontal bar plot showing x-y data
