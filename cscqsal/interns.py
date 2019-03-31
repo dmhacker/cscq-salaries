@@ -1,8 +1,8 @@
 from reddit import reddit
 from companies import COMPANIES, combine_synonyms
 
-import pprint
 import logging
+import json
 
 import matplotlib.pyplot as plt
 
@@ -241,7 +241,7 @@ def get_intern_hourly_rates(logger=global_logger):
 def display_intern_salaries():
     # Fetch salary data and pretty print it for debugging purposes
     intern_salaries = get_intern_hourly_rates()
-    pprint.pprint(intern_salaries)
+    print(json.dumps(intern_salaries, indent=2, sort_keys=True))
 
     # Extract x, y data (companies, rates respectively)
     companies = sorted(list(intern_salaries.keys()),
