@@ -28,6 +28,8 @@ COMPANIES = [
     'DRW',
     'SIG',
     'IMC',
+    'AQR',
+    'Bridgewater Associates',
     'Akuna Capital',
     'Virtu Financial',
     'Hudson River Trading',

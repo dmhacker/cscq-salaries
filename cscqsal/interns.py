@@ -73,14 +73,13 @@ def get_intern_hourly_rates():
                             if content[i] == '/' and \
                                     (content[i - 1].isnumeric() or
                                      content[i - 1] == 'k') and \
-                                    content[i + 1] in 'hmw':
+                                    content[i + 1] in 'hmwb':
                                 # Make sure a salary label is on the same line
                                 # If there's a newline between the label and
                                 # the slash, then it's likely that we are
                                 # looking at invalid data
                                 j = i - 1
-                                invalid = False
-                                while True:
+                                while j >= 0:
                                     if content[j] == '\n':
                                         # We've reached a newline before
                                         # hitting the salary label
@@ -90,9 +89,22 @@ def get_intern_hourly_rates():
                                         # We've reached the salary data
                                         # with no newlines between it
                                         # and the salary slash
+                                        invalid = False
                                         break
                                     j -= 1
                                 if invalid:
+                                    break
+
+                                # We can weed out more bad data: there
+                                # must be only one salary label between
+                                # the salary value and the company name
+                                j = i - 1
+                                num_labels = 0
+                                while j > company_idx:
+                                    if content[j:i].startswith('salary'):
+                                        num_labels += 1
+                                    j -= 1
+                                if num_labels > 1:
                                     break
 
                                 # Move the left bound of our window
@@ -121,6 +133,8 @@ def get_intern_hourly_rates():
                                     salary *= 1000
                                 if content[i + 1] == 'm':
                                     salary /= 160
+                                if content[i + 1] == 'b':
+                                    salary /= 80
                                 if content[i + 1] == 'w':
                                     salary /= 40
 
@@ -152,10 +166,6 @@ def get_intern_hourly_rates():
                                 if company == 'Microsoft':
                                     if 'explore intern' in content:
                                         company = 'Microsoft-Explore'
-
-                                if company == 'Facebook':
-                                    print('-' * 60)
-                                    print(content)
 
                                 break
 
