@@ -3,9 +3,22 @@ from companies import COMPANIES, combine_synonyms
 
 import pprint
 import matplotlib.pyplot as plt
+import logging
+
+LOG_FORMAT = '%(module)s - %(asctime)-15s - %(levelname)s: %(message)s'
+LOG_LEVEL = logging.INFO
+
+global_logger = logging.getLogger('cscqsal')
+global_logger.handles = []
+global_logger.disabled = False
+handler = logging.StreamHandler()
+formatter = logging.Formatter(LOG_FORMAT)
+handler.setFormatter(formatter)
+global_logger.addHandler(handler)
+global_logger.setLevel(LOG_LEVEL)
 
 
-def get_intern_hourly_rates():
+def get_intern_hourly_rates(logger=global_logger):
     salaries = {}
 
     for submission in reddit.subreddit('cscareerquestions') \
@@ -14,7 +27,7 @@ def get_intern_hourly_rates():
         if '[OFFICIAL] Salary Sharing thread' not in submission.title:
             continue
 
-        print("Collecting comments from '{0}'.".format(submission.title))
+        logger.info("Collecting comments from '{0}'.".format(submission.title))
 
         # Do not expand any comments into the top level list
         submission.comments.replace_more(limit=0, threshold=0)
@@ -73,7 +86,8 @@ def get_intern_hourly_rates():
                             if content[i] == '/' and \
                                     (content[i - 1].isnumeric() or
                                      content[i - 1] == 'k') and \
-                                    content[i + 1] in 'hmwb':
+                                    content[i + 1] in 'ymbwh':
+
                                 # Make sure a salary label is on the same line
                                 # If there's a newline between the label and
                                 # the slash, then it's likely that we are
@@ -93,6 +107,11 @@ def get_intern_hourly_rates():
                                         break
                                     j -= 1
                                 if invalid:
+                                    message = ("Skipping #{0} ({1}). "
+                                               "No corresponding label for "
+                                               "salary label.") \
+                                        .format(comment.id, company)
+                                    logger.warning(message)
                                     break
 
                                 # We can weed out more bad data: there
@@ -105,6 +124,11 @@ def get_intern_hourly_rates():
                                         num_labels += 1
                                     j -= 1
                                 if num_labels > 1:
+                                    message = ("Skipping #{0} ({1}). "
+                                               "Too many labels between "
+                                               "salary value and company.") \
+                                        .format(comment.id, company)
+                                    logger.warning(message)
                                     break
 
                                 # Move the left bound of our window
@@ -131,6 +155,8 @@ def get_intern_hourly_rates():
                                                .replace('k', ''))
                                 if content[i - 1] == 'k':
                                     salary *= 1000
+                                if content[i + 1] == 'y':
+                                    salary /= 2080
                                 if content[i + 1] == 'm':
                                     salary /= 160
                                 if content[i + 1] == 'b':
@@ -142,9 +168,11 @@ def get_intern_hourly_rates():
                                 # in the hourly range [10, 150]. Any numbers
                                 # outside those ranges are basically impossible
                                 if salary < 10 or salary > 150:
-                                    print("Skipping #{0} ({1}). "
-                                          "Salary is ${2}/hour?"
-                                          .format(comment.id, company, salary))
+                                    message = ("Skipping #{0} ({1}). "
+                                               "Out of acceptable range: "
+                                               "${2}/hour.") \
+                                        .format(comment.id, company, salary)
+                                    logger.warning(message)
                                     salary = -1
 
                                 # Correct company names so we only get one
