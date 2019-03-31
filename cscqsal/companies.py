@@ -28,7 +28,7 @@ COMPANIES = [
     'SIG',
     'IMC',
     'AQR',
-    'Bridgewater Associates',
+    'Bridgewater',
     'Akuna Capital',
     'Virtu Financial',
     'Hudson River Trading',
@@ -139,4 +139,6 @@ def combine_synonyms(company):
         company = 'Snap Inc.'
     if company == 'Citi':
         company = 'Citigroup'
+    if company == 'Hudson River Trading':
+        company = 'Hud. River Trading'
     return company

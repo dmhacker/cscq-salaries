@@ -105,104 +105,135 @@ def get_intern_hourly_rates(logger=global_logger):
                                 content[salary_end] != '\n':
                             salary_end += 1
 
-                        # Parse the contents of the salary line
-                        salary = -1
-                        for i in range(salary_start, salary_end):
-                            if content[i] == '/' and \
-                                    (content[i - 1].isnumeric() or
-                                     content[i - 1] == '$' or
-                                     content[i - 1] == 'k') and \
-                                    content[i + 1] in 'ymbwh':
-                                # Move the left bound of our window
-                                # to accomodate the numerical portion
-                                # of the given salary
-                                end = i
-                                start = i - 1
-                                while start >= 0 and \
-                                        (content[start].isnumeric() or
-                                         content[start] == '.' or
-                                         content[start] == ',' or
-                                         (content[start] == '$' and
-                                          start == i - 1) or
-                                         (content[start] == 'k' and
-                                          start == i - 1)):
-                                    start -= 1
-                                start += 1
+                        # Extract the first numeric value in the
+                        # salary line. We can skip to the last
+                        # appearance of the 'salary' keyword in
+                        # the line before we begin searching
+                        # (fixes issues with Datadog comment)
+                        i = content[(salary_start + 1):salary_end] \
+                            .find('salary')
+                        i = i + salary_start + 1 if i >= 0 else salary_start
+                        salary_buffer = ''
+                        mode = 0
+                        while i < salary_end:
+                            if mode == 0:
+                                if content[i].isnumeric():
+                                    salary_buffer += content[i]
+                                    mode = 1
+                            elif mode == 1:
+                                if content[i].isnumeric() or \
+                                        content[i] == 'k' or \
+                                        content[i] == '.' or \
+                                        content[i] == ',':
+                                    salary_buffer += content[i]
+                                else:
+                                    break
+                            i += 1
 
-                                # Parse salary into a numerical result,
-                                # taking into account whether it was
-                                # given as an hourly, monthly, or weekly
-                                # rate. Additionally, transform any -k
-                                # endings by multiplying by 1000
-                                salary = float(content[start:end]
-                                               .replace(',', '')
-                                               .replace('$', '')
-                                               .replace('k', ''))
-                                if content[i - 1] == 'k':
-                                    salary *= 1000
+                        # No numeric salary information
+                        # could be extracted
+                        if not salary_buffer:
+                            continue
 
-                                # Convert montly, yearly, etc.
-                                # salaries to hourly rates
-                                if content[i + 1] == 'y':
-                                    # Assumes 40 hr/wk, 52 wk/yr
-                                    salary /= 2080
-                                if content[i + 1] == 'm':
-                                    # Assumes 40 hr/wk, 4.35 wk/mo
-                                    salary /= 174
-                                if content[i + 1] == 'b':
-                                    # Assumes 40 hr/wk (biweekly)
-                                    salary /= 80
-                                if content[i + 1] == 'w':
-                                    # Assumes 40 hr/wk
-                                    salary /= 40
+                        # Convert salary string into
+                        # an actual float
+                        salary = float(salary_buffer
+                                       .replace(',', '')
+                                       .replace('k', ''))
+                        if salary_buffer[-1] == 'k':
+                            salary *= 1000
 
-                                # Intern monthly salaries should at least be
-                                # in the hourly range [10, 150]. Any numbers
-                                # outside those ranges are basically impossible
-                                if salary < 10 or salary > 150:
-                                    message = ("Skipping #{0} ({1}). "
-                                               "Out of acceptable range: "
-                                               "${2}/hour.") \
-                                        .format(comment.id, company, salary)
-                                    logger.warning(message)
-                                    salary = -1
-
-                                # Correct company names so we only get one
-                                # appearance of the company in the output
-                                # (e.g JPMorgan and JP Morgan are the same
-                                # company, just stylized differently)
-                                company = combine_synonyms(company)
-
-                                # Handle the ridiculuous diveristy
-                                # initiatives that some companies love
-                                if company == 'Google':
-                                    if 'engineering practicum intern' \
-                                            in content or \
-                                            'ep intern' in content:
-                                        company = 'Google-EP'
-                                if company == 'Facebook':
-                                    if 'university intern' in content:
-                                        company = 'Facebook-University'
-                                if company == 'Microsoft':
-                                    if 'explore intern' in content:
-                                        company = 'Microsoft-Explore'
-
-                                break
-
-                        if salary > 0:
-                            # Base case: a company has 0 interns working
-                            # for it and they pay an hourly rate of 0
-                            if company not in salaries:
-                                salaries[company] = [0, 0]
-
-                            # Recompute averages and increase count
-                            stats = salaries[company]
-                            [avg, cnt] = stats
-                            stats[0] = (avg * cnt + salary) / (cnt + 1)
-                            stats[1] += 1
+                        # Convert all salaries into hourly rates
+                        # using the immediate suffixes to the numeric
+                        # portion of the salary
+                        salary_remainder = content[i:salary_end]
+                        if salary_remainder.startswith('/y') or \
+                                salary_remainder.startswith('$/y') or \
+                                salary_remainder.startswith(' per-annum') or \
+                                salary_remainder.startswith(' pro-rated') or \
+                                salary_remainder.startswith(' prorated') or \
+                                salary_remainder.startswith(' annual'):
+                            salary /= 2080
+                        elif salary_remainder.startswith('/m') or \
+                                salary_remainder.startswith('$/m') or \
+                                salary_remainder.startswith('pm') or \
+                                salary_remainder.startswith(' per mo') or \
+                                salary_remainder.startswith(' monthly') or \
+                                salary_remainder.startswith(' a mo') or \
+                                salary_remainder.startswith(' usd/m'):
+                            salary /= 174
+                        elif salary_remainder.startswith('/b') or \
+                                salary_remainder.startswith(' bi') or \
+                                salary_remainder.startswith('$/b'):
+                            salary /= 80
+                        elif salary_remainder.startswith('/w') or \
+                                salary_remainder.startswith('/2 weeks') or \
+                                salary_remainder.startswith(' weekly') or \
+                                salary_remainder.startswith(' per week') or \
+                                salary_remainder.startswith(' a week') or \
+                                salary_remainder.startswith(' per wk') or \
+                                salary_remainder.startswith(' a wk') or \
+                                salary_remainder.startswith(' usd/w') or \
+                                salary_remainder.startswith('$/w'):
+                            salary /= 40
+                        elif salary_remainder.startswith('/h') or \
+                                salary_remainder.startswith(' hr') or \
+                                salary_remainder.startswith(' per hr') or \
+                                salary_remainder.startswith(' an hr') or \
+                                salary_remainder.startswith(' per hour') or \
+                                salary_remainder.startswith(' an hour') or \
+                                salary_remainder.startswith(' usd/h') or \
+                                salary_remainder.startswith('$/h'):
+                            pass
                         else:
-                            print(company)
-                            print(content[salary_start:salary_end])
+                            message = ("Skipping ${0} ({1}). "
+                                       "Unable to interpret '{2}{3}'.") \
+                                .format(comment.id, company,
+                                        salary, salary_remainder)
+                            logger.warning(message)
+                            continue
+
+                        # Intern monthly salaries should at least be
+                        # in the hourly range [10, 150]. Any numbers
+                        # outside those ranges are basically impossible
+                        if salary < 10 or salary > 150:
+                            message = ("Skipping #{0} ({1}). "
+                                       "Out of acceptable range: "
+                                       "${2}/hour.") \
+                                .format(comment.id, company, salary)
+                            logger.warning(message)
+                            continue
+
+                        # Correct company names so we only get one
+                        # appearance of the company in the output
+                        # (e.g JPMorgan and JP Morgan are the same
+                        # company, just stylized differently)
+                        company = combine_synonyms(company)
+
+                        # Handle the ridiculuous diveristy
+                        # initiatives that some companies love
+                        if company == 'Google':
+                            if 'engineering practicum intern' \
+                                    in content or \
+                                    'ep intern' in content:
+                                company = 'Google-EP'
+                        if company == 'Facebook':
+                            if 'university intern' in content:
+                                company = 'Facebook-University'
+                        if company == 'Microsoft':
+                            if 'explore intern' in content:
+                                company = 'Microsoft-Explore'
+
+                        # Base case: a company has 0 interns working
+                        # for it and they pay an hourly rate of 0
+                        if company not in salaries:
+                            salaries[company] = [0, 0]
+
+                        # Recompute averages and increase count
+                        stats = salaries[company]
+                        [avg, cnt] = stats
+                        stats[0] = (avg * cnt + salary) / (cnt + 1)
+                        stats[1] += 1
     return salaries
 
 
