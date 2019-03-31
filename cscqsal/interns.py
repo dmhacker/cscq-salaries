@@ -2,8 +2,9 @@ from reddit import reddit
 from companies import COMPANIES, combine_synonyms
 
 import pprint
-import matplotlib.pyplot as plt
 import logging
+
+import matplotlib.pyplot as plt
 
 LOG_FORMAT = '%(module)s - %(asctime)-15s - %(levelname)s: %(message)s'
 LOG_LEVEL = logging.INFO
@@ -245,8 +246,7 @@ def display_intern_salaries():
     # Extract x, y data (companies, rates respectively)
     companies = sorted(list(intern_salaries.keys()),
                        key=lambda c: intern_salaries[c][0])
-    num_salaries = sum([intern_salaries[c][1] for c in companies])
-    x = ['{0} ({1})'.format(c, intern_salaries[c][1]) for c in companies]
+    x = ['{0}'.format(c) for c in companies]
     y = [intern_salaries[c][0] for c in companies]
     x_pos = [i for i, _ in enumerate(x)]
 
@@ -255,14 +255,15 @@ def display_intern_salaries():
     plt.barh(x_pos, y, color='green')
     plt.xlabel("Hourly Rate (USD/hr)")
     plt.ylabel("Companies")
-    plt.title("{0} CS internship salaries "
+    plt.title("Internship salaries for {0} companies "
               "(as reported by /r/cscareerquestions), 2016 - Present"
-              .format(num_salaries))
+              .format(len(companies)))
     plt.yticks(x_pos, x)
 
+    # Add secondary labels showing value of bars
     for i, v in enumerate(y):
-        plt.text(v + 0.5, i - 0.3, '{0:.2f}'.format(v),
-                 color='green', fontweight='bold')
+        plt.text(0.5, i - 0.35, '{0:.2f}'.format(v),
+                 color='white', fontsize=8, fontweight='bold')
 
     # Call the plot display routine
     plt.show()
