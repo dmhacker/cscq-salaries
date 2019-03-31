@@ -18,7 +18,6 @@ COMPANIES = [
     'Uber',
     'Lime',
     'Bird',
-    'Unicorn',
     'Airbnb',
     'Qualcomm',
     'Citadel',

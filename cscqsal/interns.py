@@ -72,6 +72,10 @@ def get_intern_hourly_rates(logger=global_logger):
                     # one of the user's offers, given that the past
                     # experience header section has been filtered out
                     company_idx = content.find(company.lower())
+
+                    # When a company name appears in a user's post,
+                    # it must be a word within itself (surrounded by
+                    # appropriate delimiters)
                     before_char = content[company_idx - 1] \
                         if company_idx > 0 else ' '
                     after_char = content[company_idx + len(company)] \
@@ -81,56 +85,34 @@ def get_intern_hourly_rates(logger=global_logger):
                     if company_idx >= 0 and \
                             before_char in ending_delimiters and \
                             after_char in ending_delimiters:
+                        # Identify the salary line for the company
+                        # Usually, these lines are labeled with the
+                        # 'salary' keyword
+                        salary_idx = content.find('salary', company_idx)
+                        if salary_idx == -1:
+                            continue
+
+                        # Find the inclusive start of the salary line
+                        salary_start = salary_idx
+                        while salary_start >= 0 and \
+                                content[salary_start] != '\n':
+                            salary_start -= 1
+                        salary_start += 1
+
+                        # Find the exclusive end of the salary line
+                        salary_end = salary_idx
+                        while salary_end < len(content) and \
+                                content[salary_end] != '\n':
+                            salary_end += 1
+
+                        # Parse the contents of the salary line
                         salary = -1
-                        for i in range(company_idx, len(content)):
+                        for i in range(salary_start, salary_end):
                             if content[i] == '/' and \
                                     (content[i - 1].isnumeric() or
+                                     content[i - 1] == '$' or
                                      content[i - 1] == 'k') and \
                                     content[i + 1] in 'ymbwh':
-
-                                # Make sure a salary label is on the same line
-                                # If there's a newline between the label and
-                                # the slash, then it's likely that we are
-                                # looking at invalid data
-                                j = i - 1
-                                while j >= 0:
-                                    if content[j] == '\n':
-                                        # We've reached a newline before
-                                        # hitting the salary label
-                                        invalid = True
-                                        break
-                                    if content[j:i].startswith('salary'):
-                                        # We've reached the salary data
-                                        # with no newlines between it
-                                        # and the salary slash
-                                        invalid = False
-                                        break
-                                    j -= 1
-                                if invalid:
-                                    message = ("Skipping #{0} ({1}). "
-                                               "No corresponding label for "
-                                               "salary label.") \
-                                        .format(comment.id, company)
-                                    logger.warning(message)
-                                    break
-
-                                # We can weed out more bad data: there
-                                # must be only one salary label between
-                                # the salary value and the company name
-                                j = i - 1
-                                num_labels = 0
-                                while j > company_idx:
-                                    if content[j:i].startswith('salary'):
-                                        num_labels += 1
-                                    j -= 1
-                                if num_labels > 1:
-                                    message = ("Skipping #{0} ({1}). "
-                                               "Too many labels between "
-                                               "salary value and company.") \
-                                        .format(comment.id, company)
-                                    logger.warning(message)
-                                    break
-
                                 # Move the left bound of our window
                                 # to accomodate the numerical portion
                                 # of the given salary
@@ -140,6 +122,8 @@ def get_intern_hourly_rates(logger=global_logger):
                                         (content[start].isnumeric() or
                                          content[start] == '.' or
                                          content[start] == ',' or
+                                         (content[start] == '$' and
+                                          start == i - 1) or
                                          (content[start] == 'k' and
                                           start == i - 1)):
                                     start -= 1
@@ -152,16 +136,24 @@ def get_intern_hourly_rates(logger=global_logger):
                                 # endings by multiplying by 1000
                                 salary = float(content[start:end]
                                                .replace(',', '')
+                                               .replace('$', '')
                                                .replace('k', ''))
                                 if content[i - 1] == 'k':
                                     salary *= 1000
+
+                                # Convert montly, yearly, etc.
+                                # salaries to hourly rates
                                 if content[i + 1] == 'y':
+                                    # Assumes 40 hr/wk, 52 wk/yr
                                     salary /= 2080
                                 if content[i + 1] == 'm':
-                                    salary /= 160
+                                    # Assumes 40 hr/wk, 4.35 wk/mo
+                                    salary /= 174
                                 if content[i + 1] == 'b':
+                                    # Assumes 40 hr/wk (biweekly)
                                     salary /= 80
                                 if content[i + 1] == 'w':
+                                    # Assumes 40 hr/wk
                                     salary /= 40
 
                                 # Intern monthly salaries should at least be
@@ -208,6 +200,9 @@ def get_intern_hourly_rates(logger=global_logger):
                             [avg, cnt] = stats
                             stats[0] = (avg * cnt + salary) / (cnt + 1)
                             stats[1] += 1
+                        else:
+                            print(company)
+                            print(content[salary_start:salary_end])
     return salaries
 
 
