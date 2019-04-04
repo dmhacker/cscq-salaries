@@ -225,7 +225,8 @@ def get_intern_hourly_rates(logger=global_logger):
                             if 'university intern' in content:
                                 company = 'Facebook-University'
                         if company == 'Microsoft':
-                            if 'explore intern' in content:
+                            if 'explorer intern' in content or \
+                                    'explore intern' in content:
                                 company = 'Microsoft-Explore'
 
                         # Add to list of salaries for company
