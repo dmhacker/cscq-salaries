@@ -166,6 +166,8 @@ def get_intern_hourly_rates(logger=global_logger):
                             salary /= 174
                         elif salary_remainder.startswith('/b') or \
                                 salary_remainder.startswith(' bi') or \
+                                salary_remainder.startswith('/2') or \
+                                salary_remainder.startswith('$/2') or \
                                 salary_remainder.startswith('$/b'):
                             salary /= 80
                         elif salary_remainder.startswith('/w') or \
@@ -226,8 +228,7 @@ def get_intern_hourly_rates(logger=global_logger):
                             if 'explore intern' in content:
                                 company = 'Microsoft-Explore'
 
-                        # Base case: a company has 0 interns working
-                        # for it and they pay an hourly rate of 0
+                        # Add to list of salaries for company
                         if company in salaries:
                             salaries[company].append(salary)
                         else:
