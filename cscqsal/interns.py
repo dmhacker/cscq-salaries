@@ -20,8 +20,8 @@ global_logger.addHandler(handler)
 global_logger.setLevel(LOG_LEVEL)
 
 
-def get_intern_hourly_rates(logger=global_logger):
-    salaries = {}
+def get_intern_offers(logger=global_logger):
+    offers = []
 
     def extract_labeled_line(content, label):
         label_idx = content.find(label, company_idx)
@@ -244,25 +244,39 @@ def get_intern_hourly_rates(logger=global_logger):
                                 company = 'Microsoft-Explore'
 
                         # Add to list of salaries for company
-                        if company in salaries:
-                            salaries[company].append((salary, location))
-                        else:
-                            salaries[company] = [(salary, location)]
-    return salaries
+                        offers.append({
+                            'company': company,
+                            'salary': salary,
+                            'location': location
+                        })
+
+    return sorted(offers, key=lambda o: (o['company'], o['salary']))
 
 
 def display_intern_salaries():
+    # Collect raw offer data
+    offers = get_intern_offers()
+    print(json.dumps(offers, indent=2, sort_keys=True))
+
+    # Convert offers to salaries by companies
+    salaries = {}
+    for offer in offers:
+        company = offer['company']
+        salary = offer['salary']
+        if company in salaries:
+            salaries[company].append(salary)
+        else:
+            salaries[company] = [salary]
+
     # Fetch salary data and pretty print it for debugging purposes
-    intern_salaries = get_intern_hourly_rates()
-    average_intern_salaries = {c: statistics.mean([s[0] for s in intern_salaries[c]])
-                               for c in intern_salaries.keys()}
-    print(json.dumps(intern_salaries, indent=2, sort_keys=True))
+    average_salaries = {c: statistics.mean(salaries[c])
+                        for c in salaries.keys()}
 
     # Extract x, y data (companies, rates respectively)
-    companies = sorted(list(intern_salaries.keys()),
-                       key=lambda c: average_intern_salaries[c])
+    companies = sorted(list(salaries.keys()),
+                       key=lambda c: average_salaries[c])
     x = ['{0}'.format(c) for c in companies]
-    y = [average_intern_salaries[c] for c in companies]
+    y = [average_salaries[c] for c in companies]
     x_pos = [i for i, _ in enumerate(x)]
 
     # Specify horizontal bar plot showing x-y data
