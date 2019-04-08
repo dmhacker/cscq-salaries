@@ -23,6 +23,21 @@ global_logger.setLevel(LOG_LEVEL)
 def get_intern_hourly_rates(logger=global_logger):
     salaries = {}
 
+    def extract_labeled_line(content, label):
+        label_idx = content.find(label, company_idx)
+        if label_idx == -1:
+            return (-1, -1)
+        line_start = label_idx
+        while line_start >= 0 and \
+                content[line_start] != '\n':
+            line_start -= 1
+        line_start += 1
+        line_end = label_idx
+        while line_end < len(content) and \
+                content[line_end] != '\n':
+            line_end += 1
+        return (line_start, line_end)
+
     for submission in reddit.subreddit('cscareerquestions') \
             .search('Salary Sharing thread intern'):
         # Make sure we're only looking at official salary sharing threads
@@ -88,49 +103,34 @@ def get_intern_hourly_rates(logger=global_logger):
                             before_char in ending_delimiters and \
                             after_char in ending_delimiters:
                         # Identify the salary line for the company
-                        # Usually, these lines are labeled with the
-                        # 'salary' keyword
-                        salary_idx = content.find('salary', company_idx)
-                        if salary_idx == -1:
+                        (salary_start, salary_end) = \
+                            extract_labeled_line(content, 'salary')
+                        if salary_start == -1:
                             continue
+                        salary_line = content[salary_start:salary_end]
 
-                        # Find the inclusive start of the salary line
-                        salary_start = salary_idx
-                        while salary_start >= 0 and \
-                                content[salary_start] != '\n':
-                            salary_start -= 1
-                        salary_start += 1
-
-                        # Find the exclusive end of the salary line
-                        salary_end = salary_idx
-                        while salary_end < len(content) and \
-                                content[salary_end] != '\n':
-                            salary_end += 1
+                        # Skip to last appearance of label keyword,
+                        # fixes issues with Datadog comment
+                        i = salary_line.find('salary') + len('salary')
 
                         # Extract the first numeric value in the
-                        # salary line. We can skip to the last
-                        # appearance of the 'salary' keyword in
-                        # the line before we begin searching
-                        # (fixes issues with Datadog comment)
-                        i = content[(salary_start + 1):salary_end] \
-                            .find('salary')
-                        i = i + salary_start + 1 if i >= 0 else salary_start
+                        # salary line
                         salary_buffer = ''
                         mode = 0
-                        while i < salary_end:
+                        for i in range(len(salary_line)):
+                            c = salary_line[i]
                             if mode == 0:
-                                if content[i].isnumeric():
-                                    salary_buffer += content[i]
+                                if c.isnumeric():
+                                    salary_buffer += c
                                     mode = 1
                             elif mode == 1:
-                                if content[i].isnumeric() or \
-                                        content[i] == 'k' or \
-                                        content[i] == '.' or \
-                                        content[i] == ',':
-                                    salary_buffer += content[i]
+                                if c.isnumeric() or \
+                                        c == 'k' or \
+                                        c == '.' or \
+                                        c == ',':
+                                    salary_buffer += c
                                 else:
                                     break
-                            i += 1
 
                         # No numeric salary information
                         # could be extracted
@@ -148,7 +148,7 @@ def get_intern_hourly_rates(logger=global_logger):
                         # Convert all salaries into hourly rates
                         # using the immediate suffixes to the numeric
                         # portion of the salary
-                        salary_remainder = content[i:salary_end]
+                        salary_remainder = salary_line[i:]
                         if salary_remainder.startswith('/y') or \
                                 salary_remainder.startswith('$/y') or \
                                 salary_remainder.startswith(' per-annum') or \
@@ -208,6 +208,20 @@ def get_intern_hourly_rates(logger=global_logger):
                             logger.warning(message)
                             continue
 
+                        # Identify the location line
+                        (loc_start, loc_end) = \
+                            extract_labeled_line(content, 'location:')
+                        if loc_start == -1:
+                            continue
+                        loc_line = content[loc_start:loc_end]
+
+                        # Trim out the label and any formatting from
+                        # the locaiton line
+                        loc_actual_start = loc_line.find('location:') \
+                            + len('location:')
+                        location = loc_line[loc_actual_start:loc_end] \
+                            .replace('**', '').strip()
+
                         # Correct company names so we only get one
                         # appearance of the company in the output
                         # (e.g JPMorgan and JP Morgan are the same
@@ -231,16 +245,16 @@ def get_intern_hourly_rates(logger=global_logger):
 
                         # Add to list of salaries for company
                         if company in salaries:
-                            salaries[company].append(salary)
+                            salaries[company].append((salary, location))
                         else:
-                            salaries[company] = [salary]
+                            salaries[company] = [(salary, location)]
     return salaries
 
 
 def display_intern_salaries():
     # Fetch salary data and pretty print it for debugging purposes
     intern_salaries = get_intern_hourly_rates()
-    average_intern_salaries = {c: statistics.mean(intern_salaries[c])
+    average_intern_salaries = {c: statistics.mean([s[0] for s in intern_salaries[c]])
                                for c in intern_salaries.keys()}
     print(json.dumps(intern_salaries, indent=2, sort_keys=True))
 

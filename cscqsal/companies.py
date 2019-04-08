@@ -109,9 +109,14 @@ COMPANIES = [
     'Groupon',
     'Qualtrics',
     'Blend Labs',
+    'Nike',
+    'Target',
+    'Disney',
+    'Twilio',
     'Insurance',
     'Oil',
     'Telecom',
+    'Startup'
 ]
 
 
